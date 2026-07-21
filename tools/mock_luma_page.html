@@ -1,0 +1,17 @@
+<!doctype html>
+<html>
+<body>
+  <h1>Mock Event</h1>
+  <form id="rsvp">
+    <input name="name" placeholder="Your name" />
+    <input name="email" type="email" placeholder="Email" />
+    <button type="button" id="btn">Register</button>
+  </form>
+  <div id="result"></div>
+  <script>
+    document.getElementById("btn").addEventListener("click", () => {
+      document.getElementById("result").textContent = "You're in! Confirmed.";
+    });
+  </script>
+</body>
+</html>

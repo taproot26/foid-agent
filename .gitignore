@@ -1,0 +1,19 @@
+# dependencies
+node_modules
+frontend/node_modules
+
+# secrets / personal data — copy the .example files instead
+.env
+profile.data.json
+
+# local data (chat history, vector index)
+logs.db
+rag-vec.db
+
+# build output
+dist
+frontend/dist
+
+# misc
+.DS_Store
+*.log
