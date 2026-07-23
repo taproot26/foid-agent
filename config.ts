@@ -12,6 +12,8 @@ if (fs.existsSync(envPath)) {
 export const LLM_URL = "https://api.groq.com/openai/v1/chat/completions";
 export const CHAT_MODEL = "llama-3.3-70b-versatile";
 export const GROQ_API_KEY = process.env.GROQ_API_KEY ?? "";
+export const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN ?? "";
+export const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? "";
 export const EMBED_MODEL = "Xenova/all-MiniLM-L6-v2";
 export const DB_PATH = "./rag-vec.db";
 export const LOG_DB_PATH = "./logs.db";

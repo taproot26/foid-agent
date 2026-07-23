@@ -6,6 +6,7 @@ import { retrieve, ingest } from "./rag";
 import { buildToolPrompt, parseToolCall, executeTool } from "./tools";
 import { logRequest } from "./db/sqlite";
 import { profilePromptBlock } from "./profile";
+import { handleTelegramUpdate, telegramSend } from "./tools/telegram";
 
 async function llm(messages: Message[]): Promise<string> {
   const res = await fetch(LLM_URL, {
@@ -126,6 +127,23 @@ app.post("/ingest", async (req, res) => {
   } catch (e: any) {
     console.error(e);
     res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /telegram-webhook — receives Telegram updates
+app.post("/telegram-webhook", async (req, res) => {
+  res.json({ ok: true }); // ack immediately
+
+  const update = req.body;
+  const msg = await handleTelegramUpdate(update);
+  if (!msg) return; // not a message update
+
+  try {
+    const response = await chat(msg.text);
+    await telegramSend({ chat_id: msg.chatId, text: response });
+  } catch (e: any) {
+    console.error("telegram webhook error:", e);
+    await telegramSend({ chat_id: msg.chatId, text: `error: ${e.message}` }).catch(() => {});
   }
 });
 

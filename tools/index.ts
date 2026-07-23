@@ -5,6 +5,8 @@ import { LOG_DB_PATH } from "../config";
 import { webFetch } from './web_fetch';
 import { webSearch } from './web_search';
 import { lumaRegister } from './luma_register';
+import { slackGetMessages, slackListChannels, slackPostMessage } from './slack_monitor';
+import { telegramSend } from './telegram';
 
 async function searchKnowledge(params: Record<string, any>): Promise<string> {
   const chunks = await retrieve(params.query);
@@ -74,6 +76,26 @@ export const tools: Record<string, Tool> = {
     description: "register/RSVP for a Luma event given its URL — uses the user's saved profile for name/email — only use when the user explicitly confirms they want to register",
     params: ["url"],
     run: lumaRegister,
+  },
+  slack_get_messages: {
+    description: "fetch recent messages from a Slack channel by name (e.g. 'general', 'random')",
+    params: ["channel", "limit"],
+    run: slackGetMessages,
+  },
+  slack_list_channels: {
+    description: "list all accessible Slack channels",
+    params: [],
+    run: slackListChannels,
+  },
+  slack_post_message: {
+    description: "post a message to a Slack channel — only use when the user explicitly asks you to send something",
+    params: ["channel", "text"],
+    run: slackPostMessage,
+  },
+  telegram_send: {
+    description: "send a message to a Telegram chat — only use when the user explicitly asks you to send something to Telegram",
+    params: ["chat_id", "text"],
+    run: telegramSend,
   },
 };
 
