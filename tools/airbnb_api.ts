@@ -49,6 +49,7 @@ export interface Listing {
   priceQualifier: string | null;
   ratingLabel: string | null;
   ratingValue: number | null;
+  reviewsCount: number | null;
 }
 
 export interface SearchResult {
@@ -69,12 +70,15 @@ function parsePrice(label: string | undefined | null): { text: string | null; va
   };
 }
 
-function parseRating(label: string | undefined | null): { text: string | null; value: number | null } {
-  if (!label) return { text: null, value: null };
+function parseRating(label: string | undefined | null): { text: string | null; value: number | null; reviews: number | null } {
+  if (!label) return { text: null, value: null, reviews: null };
   const match = label.match(/([\d.]+)\s*out of 5/);
+  // label looks like "4.96 out of 5 average rating,  349 reviews"
+  const reviewMatch = label.match(/(\d[\d,]*)\s*reviews?/);
   return {
     text: match ? match[0] : null,
     value: match ? parseFloat(match[1]) : null,
+    reviews: reviewMatch ? parseInt(reviewMatch[1].replace(/,/g, ""), 10) : null,
   };
 }
 
@@ -156,6 +160,7 @@ export async function searchAirbnb(params: {
         priceQualifier: r.structuredDisplayPrice?.primaryLine?.qualifier ?? null,
         ratingLabel: rating.text,
         ratingValue: rating.value,
+        reviewsCount: rating.reviews,
       };
     });
 

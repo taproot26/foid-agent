@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { LLM_URL, CHAT_MODEL, GROQ_API_KEY, MAX_TOOL_ITERATIONS } from "./config";
 import { Message, IterationLog, NativeToolCall } from "./types";
 import { retrieve, ingest } from "./rag";
-import { buildToolPrompt, getToolSchemas, executeTool, tools, routeAgent, Mode, AgentType, SWITCH_TO_ACT_MODE, ACT_MODE_CONTINUATION_PROMPT } from "./tools";
+import { buildToolPrompt, getToolSchemas, executeTool, tools, routeAgent, Mode, AgentType, SWITCH_TO_ACT_MODE, ACT_MODE_CONTINUATION_PROMPT, wantsAirbnbRecommendation } from "./tools";
 import { logRequest } from "./db/sqlite";
 import { profilePromptBlock } from "./profile";
 import { handleTelegramUpdate, telegramSend, startTelegramPolling } from "./tools/telegram";
@@ -191,7 +191,11 @@ async function chat(userMessage: string, opts: ChatOpts = {}): Promise<ChatResul
     messages[0] = { role: "system", content: systemContent };
   }
 
-  messages.push({ role: "user", content: wrapUserInput(userMessage, agent === "coding", mode) });
+  let outgoingUserMessage = wrapUserInput(userMessage, agent === "coding", mode);
+  if (agent === "airbnb" && wantsAirbnbRecommendation(userMessage)) {
+    outgoingUserMessage += "\n\n[REMINDER: this request wants recommendations, not just numbers. Call airbnb_api_recommend_top5(), NOT airbnb_api_stats(). Include each recommended listing's url.]";
+  }
+  messages.push({ role: "user", content: outgoingUserMessage });
 
   let toolSchemas = getToolSchemas(agent, mode);
 
