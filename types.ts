@@ -27,6 +27,7 @@ export interface ToolCall {
 export interface Tool {
   description: string;
   params: string[];
+  optionalParams?: string[];
   run: (params: Record<string, any>) => Promise<string>;
 }
 

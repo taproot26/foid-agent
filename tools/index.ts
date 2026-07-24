@@ -273,8 +273,9 @@ export const tools: Record<string, Tool> = {
     run: airbnbClose,
   },
   airbnb_api_search: {
-    description: "Direct-fetch Airbnb search -- no browser, no calendar UI. Give it city, checkin, checkout (YYYY-MM-DD dates) and it fetches the first page of results directly. Returns {ok, pageListingCount, totalListingCountSoFar, hasNextPage}. Call this first for the API method, instead of airbnb_open.",
+    description: "Direct-fetch Airbnb search -- no browser, no calendar UI. city, checkin, checkout (YYYY-MM-DD dates) are required. minBedrooms/minBathrooms/maxBathrooms are OPTIONAL integers -- only pass them if the user actually asked for a bedroom/bathroom filter, otherwise omit entirely. Prices are always fetched in USD. Returns {ok, searchUrl, pageListingCount, totalListingCountSoFar, hasNextPage}. Call this first for the API method, instead of airbnb_open.",
     params: ["city", "checkin", "checkout"],
+    optionalParams: ["minBedrooms", "minBathrooms", "maxBathrooms"],
     run: airbnbApiSearch,
   },
   airbnb_api_next_page: {
@@ -283,7 +284,7 @@ export const tools: Record<string, Tool> = {
     run: airbnbApiNextPage,
   },
   airbnb_api_get_stats: {
-    description: "Computes average/median price and rating across every listing fetched so far via airbnb_api_search/airbnb_api_next_page. Call this once at the end instead of computing stats yourself. Returns {ok, totalListings, averagePrice, medianPrice, averageRating, medianRating}.",
+    description: "Computes average/median price (both total-stay and per-night, in USD) and rating across every listing fetched so far via airbnb_api_search/airbnb_api_next_page. Call this once at the end instead of computing stats yourself. Returns {ok, totalListings, currency, nights, averageTotalPrice, medianTotalPrice, averagePricePerNight, medianPricePerNight, averageRating, medianRating}.",
     params: [],
     run: airbnbApiGetStats,
   },
@@ -412,16 +413,18 @@ TWO METHODS -- pick ONE per task, never mix tools from both in the same run:
 - Browser method (airbnb_open ... airbnb_close, 9 steps below): drives a real browser through airbnb.com's UI. Only use this if the user specifically asks to see it happen in a browser, or the API method fails.
 
 === API METHOD (default, 3 tools) ===
-1. airbnb_api_search({city, checkin, checkout}) -- checkin/checkout MUST be "YYYY-MM-DD" (e.g. "2026-09-03"). Returns {ok, pageListingCount, totalListingCountSoFar, hasNextPage}.
+1. airbnb_api_search({city, checkin, checkout, [minBedrooms], [minBathrooms], [maxBathrooms]}) -- checkin/checkout MUST be "YYYY-MM-DD" (e.g. "2026-09-03"). Only include minBedrooms/minBathrooms/maxBathrooms if the user actually asked for that filter -- omit them entirely otherwise, do not invent a value. Prices always come back in USD. Returns {ok, searchUrl, pageListingCount, totalListingCountSoFar, hasNextPage}.
 2. airbnb_api_next_page() -- optional, only if the user wants more than one page. Repeat while hasNextPage is true and you still need more pages. If ok:false or hasNextPage:false, stop paginating.
-3. airbnb_api_get_stats() -- call once at the end for average/median price and rating across everything fetched. Do NOT compute these yourself.
+3. airbnb_api_get_stats() -- call once at the end. Returns BOTH averageTotalPrice/medianTotalPrice (the full stay cost) AND averagePricePerNight/medianPricePerNight (divided by the number of nights) -- Airbnb's own price label is always the total for the whole stay, never a nightly rate, so report whichever the user actually asked for (default to per-night if they didn't specify). Do NOT compute these yourself.
 
-WORKED EXAMPLE (API method, two pages):
-User: "Search Airbnb for Bangkok, September 3 to 10, get the first 2 pages, average and median price and rating."
-Call 1: airbnb_api_search({"city":"Bangkok","checkin":"2026-09-03","checkout":"2026-09-10"}) -> {"ok":true,"pageListingCount":18,"totalListingCountSoFar":18,"hasNextPage":true}
+DATE RANGES -- "the month of October" (or any bare month name with no day given) means checkin = the 1st of that month, checkout = the LAST day of that month (30 or 31, whichever that month actually has -- don't guess, use the real calendar length). If the user gives explicit day numbers ("Sept 3 to 10"), use those instead.
+
+WORKED EXAMPLE (API method, two pages, with bedroom + bathroom filter):
+User: "Search Airbnb for Phuket, October 1 to 8, minimum 1 bedroom and exactly 1 bathroom. Show 2 pages, give me per-night price in USD."
+Call 1: airbnb_api_search({"city":"Phuket","checkin":"2026-10-01","checkout":"2026-10-08","minBedrooms":"1","minBathrooms":"1","maxBathrooms":"1"}) -> {"ok":true,"searchUrl":"https://www.airbnb.com/s/Phuket/homes?...&currency=USD&min_bedrooms=1&min_bathrooms=1&max_bathrooms=1","pageListingCount":18,"totalListingCountSoFar":18,"hasNextPage":true}
 Call 2: airbnb_api_next_page() -> {"ok":true,"pageListingCount":18,"totalListingCountSoFar":36,"hasNextPage":true}
-Call 3: airbnb_api_get_stats() -> {"ok":true,"totalListings":36,"averagePrice":58210,"medianPrice":57200,"averageRating":4.91,"medianRating":4.95}
-Final answer (no tool call): "I fetched Bangkok for Sep 3-10 across 2 pages (36 listings). Average price: ¥58,210 (median ¥57,200). Average rating: 4.91 (median 4.95)."
+Call 3: airbnb_api_get_stats() -> {"ok":true,"totalListings":36,"currency":"USD","nights":7,"averageTotalPrice":2211,"medianTotalPrice":1358,"averagePricePerNight":316,"medianPricePerNight":194,"averageRating":4.94,"medianRating":4.97}
+Final answer (no tool call): "I fetched Phuket for Oct 1-8 (7 nights), minimum 1 bedroom / exactly 1 bathroom, across 2 pages (36 listings). Average price: $316/night (median $194/night). Average rating: 4.94 (median 4.97)."
 
 === BROWSER METHOD (fallback, 9 tools) ===
 MUST happen in this exact order:
@@ -480,18 +483,21 @@ export function getToolSchemas(agent: AgentType, mode: Mode = "act") {
     names = GENERAL_TOOLS;
   }
 
-  const schemas = names.map(name => ({
-    type: "function",
-    function: {
-      name,
-      description: tools[name].description,
-      parameters: {
-        type: "object",
-        properties: Object.fromEntries(tools[name].params.map(p => [p, { type: "string" }])),
-        required: tools[name].params,
+  const schemas = names.map(name => {
+    const allParams = [...tools[name].params, ...(tools[name].optionalParams ?? [])];
+    return {
+      type: "function",
+      function: {
+        name,
+        description: tools[name].description,
+        parameters: {
+          type: "object",
+          properties: Object.fromEntries(allParams.map(p => [p, { type: "string" }])),
+          required: tools[name].params,
+        },
       },
-    },
-  }));
+    };
+  });
 
   // plan mode is the only place switch_to_act_mode exists — it's the gate out of plan mode (coding agent only).
   if (agent === "coding" && mode === "plan") schemas.push(SWITCH_TO_ACT_MODE_SCHEMA);

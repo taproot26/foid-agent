@@ -80,9 +80,13 @@ export async function searchAirbnb(params: {
   checkin?: string;
   checkout?: string;
   adults?: number;
+  minBedrooms?: number;
+  minBathrooms?: number;
+  maxBathrooms?: number;
+  currency?: string;
   cursor?: string;
 }): Promise<SearchResult> {
-  const { city, checkin, checkout, adults = 1, cursor } = params;
+  const { city, checkin, checkout, adults = 1, minBedrooms, minBathrooms, maxBathrooms, currency = "USD", cursor } = params;
 
   const slug = city.replace(/,\s*/g, "--").replace(/\s+/g, "-");
   const url = new URL(`${BASE_URL}/s/${encodeURIComponent(slug)}/homes`);
@@ -97,6 +101,12 @@ export async function searchAirbnb(params: {
   if (checkin) url.searchParams.append("checkin", checkin);
   if (checkout) url.searchParams.append("checkout", checkout);
   url.searchParams.append("adults", String(adults));
+  // Without an explicit currency, Airbnb picks one on its own (observed: JPY, for a Thailand
+  // search, with no discernible logic) -- always pin it so priceValue is in a known unit.
+  url.searchParams.append("currency", currency);
+  if (minBedrooms && minBedrooms > 0) url.searchParams.append("min_bedrooms", String(minBedrooms));
+  if (minBathrooms && minBathrooms > 0) url.searchParams.append("min_bathrooms", String(minBathrooms));
+  if (maxBathrooms && maxBathrooms > 0) url.searchParams.append("max_bathrooms", String(maxBathrooms));
   if (cursor) url.searchParams.append("cursor", cursor);
 
   let html: string;

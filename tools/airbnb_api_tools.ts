@@ -12,14 +12,32 @@ let lastCheckin = "";
 let lastCheckout = "";
 let nextCursor: string | null = null;
 
+function nightsBetween(checkin: string, checkout: string): number | null {
+  const inDate = new Date(checkin);
+  const outDate = new Date(checkout);
+  if (isNaN(inDate.getTime()) || isNaN(outDate.getTime())) return null;
+  const nights = Math.round((outDate.getTime() - inDate.getTime()) / (1000 * 60 * 60 * 24));
+  return nights > 0 ? nights : null;
+}
+
 async function airbnbApiSearch(params: Record<string, any>): Promise<string> {
   allListings = [];
   nextCursor = null;
   lastCity = params.city;
   lastCheckin = params.checkin;
   lastCheckout = params.checkout;
+  const minBedrooms = parseInt(params.minBedrooms || "0", 10);
+  const minBathrooms = parseInt(params.minBathrooms || "0", 10);
+  const maxBathrooms = parseInt(params.maxBathrooms || "0", 10);
 
-  const result = await searchAirbnb({ city: lastCity, checkin: lastCheckin, checkout: lastCheckout });
+  const result = await searchAirbnb({
+    city: lastCity,
+    checkin: lastCheckin,
+    checkout: lastCheckout,
+    ...(minBedrooms > 0 && { minBedrooms }),
+    ...(minBathrooms > 0 && { minBathrooms }),
+    ...(maxBathrooms > 0 && { maxBathrooms }),
+  });
   if (result.ok) {
     allListings = [...result.listings];
     nextCursor = result.nextCursor;
@@ -27,6 +45,7 @@ async function airbnbApiSearch(params: Record<string, any>): Promise<string> {
   return JSON.stringify({
     ok: result.ok,
     error: result.error,
+    searchUrl: result.searchUrl,
     pageListingCount: result.listings.length,
     totalListingCountSoFar: allListings.length,
     hasNextPage: !!result.nextCursor,
@@ -67,13 +86,25 @@ async function airbnbApiGetStats(_params: Record<string, any>): Promise<string> 
     .filter((v): v is number => typeof v === "number" && !isNaN(v))
     .sort((a, b) => a - b);
 
+  const avgPrice = prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : null;
+  const medPrice = median(prices);
+  const avgRating = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null;
+  const medRating = median(ratings);
+  // Airbnb's price label is the TOTAL for the whole stay (e.g. "$647 for 7 nights"), not a
+  // nightly rate -- divide by nights so stats are comparable across different trip lengths.
+  const nights = nightsBetween(lastCheckin, lastCheckout);
+
   return JSON.stringify({
     ok: allListings.length > 0,
     totalListings: allListings.length,
-    averagePrice: prices.length ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) : null,
-    medianPrice: median(prices) !== null ? Math.round(median(prices) as number) : null,
-    averageRating: ratings.length ? +(ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(2) : null,
-    medianRating: median(ratings) !== null ? +(median(ratings) as number).toFixed(2) : null,
+    currency: "USD",
+    nights,
+    averageTotalPrice: avgPrice ? Math.round(avgPrice) : null,
+    medianTotalPrice: medPrice ? Math.round(medPrice as number) : null,
+    averagePricePerNight: avgPrice && nights ? Math.round(avgPrice / nights) : null,
+    medianPricePerNight: medPrice && nights ? Math.round((medPrice as number) / nights) : null,
+    averageRating: avgRating ? +(avgRating).toFixed(2) : null,
+    medianRating: medRating ? +(medRating as number).toFixed(2) : null,
   });
 }
 
