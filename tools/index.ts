@@ -14,7 +14,7 @@ import {
   airbnbOpen, airbnbSearchDestination, airbnbOpenCalendar, airbnbSelectDates,
   airbnbClickSearch, airbnbScrapePage, airbnbNextPage, airbnbGetStats, airbnbClose,
 } from './airbnb';
-import { airbnbApiSearch, airbnbApiNextPage, airbnbApiGetStats } from './airbnb_api_tools';
+import { airbnbApiSearch, airbnbApiNextPage, airbnbApiGetStats, airbnbApiRecommend } from './airbnb_api_tools';
 
 async function searchKnowledge(params: Record<string, any>): Promise<string> {
   const chunks = await retrieve(params.query);
@@ -288,6 +288,11 @@ export const tools: Record<string, Tool> = {
     params: [],
     run: airbnbApiGetStats,
   },
+  airbnb_api_recommend: {
+    description: "Scores and ranks every listing fetched so far (up to 50) against the group's own median/average price-per-night and rating. A listing scores +1 for above-median rating, +1 for below-median price; PLUS an extra +2 if it clears BOTH the average rating and average price bar (a stronger 'good deal' signal). Returns the top 10 sorted by score, each tagged with which bars it cleared. Use this INSTEAD of airbnb_api_get_stats when the user wants a recommendation, not just raw stats. Returns {ok, poolSize, medianPricePerNight, averagePricePerNight, medianRating, averageRating, recommendedCount, topRecommendations}.",
+    params: [],
+    run: airbnbApiRecommend,
+  },
 };
 
 // ---- Agent routing & modes ----
@@ -335,7 +340,7 @@ const GENERAL_TOOLS = [
 const AIRBNB_TOOLS = [
   "airbnb_open", "airbnb_search_destination", "airbnb_open_calendar", "airbnb_select_dates",
   "airbnb_click_search", "airbnb_scrape_page", "airbnb_next_page", "airbnb_get_stats", "airbnb_close",
-  "airbnb_api_search", "airbnb_api_next_page", "airbnb_api_get_stats",
+  "airbnb_api_search", "airbnb_api_next_page", "airbnb_api_get_stats", "airbnb_api_recommend",
 ];
 
 export const SWITCH_TO_ACT_MODE = "switch_to_act_mode";
@@ -412,10 +417,11 @@ TWO METHODS -- pick ONE per task, never mix tools from both in the same run:
 - API method (airbnb_api_search / airbnb_api_next_page / airbnb_api_get_stats): direct fetch, no browser, no calendar UI. Faster, and there is no "wrong month" or "map click" failure mode because there is no UI. Use this by default for a plain "get me listings/stats for X" request.
 - Browser method (airbnb_open ... airbnb_close, 9 steps below): drives a real browser through airbnb.com's UI. Only use this if the user specifically asks to see it happen in a browser, or the API method fails.
 
-=== API METHOD (default, 3 tools) ===
+=== API METHOD (default, 4 tools) ===
 1. airbnb_api_search({city, checkin, checkout, [minBedrooms], [minBathrooms], [maxBathrooms]}) -- checkin/checkout MUST be "YYYY-MM-DD" (e.g. "2026-09-03"). Only include minBedrooms/minBathrooms/maxBathrooms if the user actually asked for that filter -- omit them entirely otherwise, do not invent a value. Prices always come back in USD. Returns {ok, searchUrl, pageListingCount, totalListingCountSoFar, hasNextPage}.
-2. airbnb_api_next_page() -- optional, only if the user wants more than one page. Repeat while hasNextPage is true and you still need more pages. If ok:false or hasNextPage:false, stop paginating.
-3. airbnb_api_get_stats() -- call once at the end. Returns BOTH averageTotalPrice/medianTotalPrice (the full stay cost) AND averagePricePerNight/medianPricePerNight (divided by the number of nights) -- Airbnb's own price label is always the total for the whole stay, never a nightly rate, so report whichever the user actually asked for (default to per-night if they didn't specify). Do NOT compute these yourself.
+2. airbnb_api_next_page() -- optional, only if the user wants more than one page or a bigger pool (e.g. "top 50 listings" needs ~3 calls: 1 search + 2 next_page, since each page is ~18). Repeat while hasNextPage is true and you still need more. There's a hard cap of 50 listings total -- hasNextPage flips to false automatically once reached, even if Airbnb has more.
+3. airbnb_api_get_stats() -- call for plain stats requests (just average/median price and rating, no recommendation). Returns BOTH averageTotalPrice/medianTotalPrice (the full stay cost) AND averagePricePerNight/medianPricePerNight (divided by the number of nights) -- Airbnb's own price label is always the total for the whole stay, never a nightly rate, so report whichever the user actually asked for (default to per-night if unspecified). Do NOT compute these yourself.
+4. airbnb_api_recommend() -- call INSTEAD of airbnb_api_get_stats when the user wants recommendations/picks, not just numbers. Scores every fetched listing against the group's own median/average (above-median rating +1, below-median price +1, PLUS +2 extra if it beats BOTH the average rating and average price). Returns the top 10 by score, each with title/subtitle/url/price/rating. Do NOT compute this scoring yourself.
 
 DATE RANGES -- "the month of October" (or any bare month name with no day given) means checkin = the 1st of that month, checkout = the LAST day of that month (30 or 31, whichever that month actually has -- don't guess, use the real calendar length). If the user gives explicit day numbers ("Sept 3 to 10"), use those instead.
 
@@ -425,6 +431,14 @@ Call 1: airbnb_api_search({"city":"Phuket","checkin":"2026-10-01","checkout":"20
 Call 2: airbnb_api_next_page() -> {"ok":true,"pageListingCount":18,"totalListingCountSoFar":36,"hasNextPage":true}
 Call 3: airbnb_api_get_stats() -> {"ok":true,"totalListings":36,"currency":"USD","nights":7,"averageTotalPrice":2211,"medianTotalPrice":1358,"averagePricePerNight":316,"medianPricePerNight":194,"averageRating":4.94,"medianRating":4.97}
 Final answer (no tool call): "I fetched Phuket for Oct 1-8 (7 nights), minimum 1 bedroom / exactly 1 bathroom, across 2 pages (36 listings). Average price: $316/night (median $194/night). Average rating: 4.94 (median 4.97)."
+
+WORKED EXAMPLE (API method, recommendation over top 50):
+User: "Pull the top 50 listings for Phuket, October 1 to 8, and recommend ones that are above median rating and below median price -- give extra weight to ones also above average rating and below average price."
+Call 1: airbnb_api_search({"city":"Phuket","checkin":"2026-10-01","checkout":"2026-10-08"}) -> {"ok":true,"pageListingCount":18,"totalListingCountSoFar":18,"hasNextPage":true}
+Call 2: airbnb_api_next_page() -> {"ok":true,"pageListingCount":18,"totalListingCountSoFar":36,"hasNextPage":true}
+Call 3: airbnb_api_next_page() -> {"ok":true,"pageListingCount":14,"totalListingCountSoFar":50,"hasNextPage":false}
+Call 4: airbnb_api_recommend() -> {"ok":true,"poolSize":50,"medianPricePerNight":58,"averagePricePerNight":74,"medianRating":4.9,"averageRating":4.87,"recommendedCount":19,"topRecommendations":[{"title":"Apartment in Kathu","subtitle":"Cozy 1BR near beach","pricePerNight":42,"rating":4.97,"score":4,...}, ...]}
+Final answer (no tool call): "Pulled the top 50 listings for Phuket Oct 1-8. Median: $58/night, 4.9 rating. Average: $74/night, 4.87 rating. 19 of 50 beat the median on both price and rating -- here are the top picks: 1. Apartment in Kathu (Cozy 1BR near beach) -- $42/night, 4.97 rating [clears both average bars too]. 2. ... [list a few more]."
 
 === BROWSER METHOD (fallback, 9 tools) ===
 MUST happen in this exact order:

@@ -42,8 +42,11 @@ async function geocodeLocation(location: string): Promise<Coords | null> {
 export interface Listing {
   id: string;
   url: string;
+  title: string | null;
+  subtitle: string | null;
   priceLabel: string | null;
   priceValue: number | null;
+  priceQualifier: string | null;
   ratingLabel: string | null;
   ratingValue: number | null;
 }
@@ -144,8 +147,13 @@ export async function searchAirbnb(params: {
       return {
         id,
         url: `${BASE_URL}/rooms/${id}`,
+        title: r.title ?? null,
+        subtitle: r.subtitle ?? null,
         priceLabel: price.text,
         priceValue: price.value,
+        // Stays of 28+ nights make Airbnb switch displayPriceStyle to "MONTHLY" (a monthly
+        // total, not "for N nights") -- surface this so callers don't assume a nightly figure.
+        priceQualifier: r.structuredDisplayPrice?.primaryLine?.qualifier ?? null,
         ratingLabel: rating.text,
         ratingValue: rating.value,
       };
