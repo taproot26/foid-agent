@@ -71,6 +71,18 @@ export function logRequest(data: {
   durationMs: number;
 }) {
   const db = getLogDb();
+
+  // sanitize iterations for JSON serialization (remove circular refs)
+  const sanitizedIterations = data.iterations.map(iter => ({
+    iteration: iter.iteration,
+    llm_output: iter.llm_output,
+    tool_called: iter.tool_called,
+    tool_params: iter.tool_params,
+    tool_result: iter.tool_result,
+    duration_ms: iter.duration_ms,
+    // skip llm_input to avoid serialization issues
+  }));
+
   db.prepare(`
     INSERT INTO requests (id, timestamp, user_message, retrieved_chunks, iterations, final_response, total_iterations, duration_ms)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -79,7 +91,7 @@ export function logRequest(data: {
     new Date().toISOString(),
     data.userMessage,
     JSON.stringify(data.retrievedChunks),
-    JSON.stringify(data.iterations),
+    JSON.stringify(sanitizedIterations),
     data.finalResponse,
     data.iterations.length,
     data.durationMs,

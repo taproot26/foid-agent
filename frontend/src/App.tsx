@@ -1,3 +1,5 @@
+import './styles.css';
+
 import { useState, useRef, useEffect } from 'react'
 
 interface Message {
@@ -72,8 +74,22 @@ export default function App() {
   return (
     <div style={{ display: 'flex', gap: 24, padding: 24, fontFamily: 'sans-serif', maxWidth: 1100, margin: '0 auto' }}>
       {/* Chat */}
+
+<div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+  <button onClick={() => console.log('Toggle theme')} disabled={false} style={{
+    padding: '10px', borderRadius: 8, border: 'none', background: '#28a745', color: '#fff', cursor: 'pointer', fontSize: 14,
+    opacity: false ? 0.5 : 1
+  }}>Toggle Theme</button>
+</div>
+
+<div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+  <button onClick={() => console.log('Start button clicked')} disabled={false} style={{
+    padding: '10px', borderRadius: 8, border: 'none', background: '#28a745', color: '#fff', cursor: 'pointer', fontSize: 14,
+    opacity: false ? 0.5 : 1
+  }}>Start</button>
+</div>
       <section style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <h2 style={{ margin: 0 }}>Chat</h2>
+<h2 style="margin: 0; font-weight: bold;">Welcome</h2>
         <div style={{
           flex: 1, minHeight: 400, maxHeight: 500, overflowY: 'auto',
           border: '1px solid #ddd', borderRadius: 8, padding: 12,

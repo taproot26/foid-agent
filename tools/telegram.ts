@@ -53,3 +53,29 @@ export async function handleTelegramUpdate(update: any): Promise<{ chatId: strin
 
   return { chatId: String(chat.id), text };
 }
+
+let pollingOffset = 0;
+
+export function startTelegramPolling(onUpdate: (update: any) => void | Promise<void>) {
+  async function poll() {
+    try {
+      const res = await fetch(
+        `${TELEGRAM_API}/getUpdates?offset=${pollingOffset}&timeout=30`
+      );
+      const data = await res.json() as any;
+
+      if (data.ok && data.result.length) {
+        for (const update of data.result) {
+          pollingOffset = update.update_id + 1;
+          await onUpdate(update);
+        }
+      }
+    } catch (e: any) {
+      console.error("telegram polling error:", e.message);
+    }
+    setImmediate(poll);
+  }
+
+  poll();
+  console.log("telegram long-polling started");
+}

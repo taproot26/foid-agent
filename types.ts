@@ -5,9 +5,18 @@ export interface Row {
   vector: number[];
 }
 
+export interface NativeToolCall {
+  id?: string;
+  function: {
+    name: string;
+    arguments: Record<string, any>;
+  };
+}
+
 export interface Message {
-  role: "system" | "user" | "assistant";
+  role: "system" | "user" | "assistant" | "tool";
   content: string;
+  tool_calls?: NativeToolCall[];
 }
 
 export interface ToolCall {

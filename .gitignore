@@ -6,9 +6,10 @@ frontend/node_modules
 .env
 profile.data.json
 
-# local data (chat history, vector index)
+# local data (chat history, vector index, audit logs)
 logs.db
 rag-vec.db
+priv-docs/audit.jsonl
 
 # build output
 dist
@@ -17,3 +18,5 @@ frontend/dist
 # misc
 .DS_Store
 *.log
+priv-docs/
+.temp/

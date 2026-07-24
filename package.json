@@ -9,6 +9,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^25.5.0",
     "better-sqlite3": "^12.8.0",
+    "cheerio": "^1.2.0",
     "express": "^5.2.1",
     "playwright": "^1.61.1",
     "sqlite-vec": "^0.1.7",
